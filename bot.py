@@ -2,8 +2,6 @@ import gspread
 import time
 from google.oauth2.service_account import Credentials
 from playwright.sync_api import sync_playwright
-import json
-import os
 
 # ================= CONFIG =================
 SHEET_ID = "13vRCGmd_uIH8Mx39WqXiU1cNDuJXea7v2ljsVwOstYs"
@@ -15,8 +13,11 @@ scopes = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-creds_dict = json.loads(os.environ["GOOGLE_CREDS"])
-creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+# ✅ FIXED: Use file instead of environment variable
+creds = Credentials.from_service_account_file(
+    SERVICE_ACCOUNT_FILE,
+    scopes=scopes
+)
 
 client = gspread.authorize(creds)
 sheet = client.open_by_key(SHEET_ID).sheet1
@@ -38,7 +39,8 @@ def check_google_ads(page, query):
         else:
             return "Yes"
 
-    except:
+    except Exception as e:
+        print("Google Ads Error:", e)
         return "Error"
 
 # ================= META ADS CHECK =================
@@ -56,14 +58,15 @@ def check_meta_ads(page, query):
         else:
             return "Yes"
 
-    except:
+    except Exception as e:
+        print("Meta Ads Error:", e)
         return "Error"
 
 # ================= MAIN LOOP =================
 print("Bot started...")
 
 with sync_playwright() as p:
-    browser = p.chromium.launch(headless=True)
+    browser = p.chromium.launch(headless=False)  # 👈 set False for debugging
     page = browser.new_page()
 
     while True:
@@ -73,9 +76,9 @@ with sync_playwright() as p:
         for i in range(1, len(rows)):
             row_number = i + 1
 
-            username = rows[i][1]   # Column B
-            meta_status = rows[i][7]   # Column H
-            google_status = rows[i][9] # Column J
+            username = rows[i][1]        # Column B
+            meta_status = rows[i][7]     # Column H
+            google_status = rows[i][9]   # Column J
 
             if not username:
                 continue
@@ -86,13 +89,13 @@ with sync_playwright() as p:
 
             print(f"Checking row {row_number}: {username}")
 
-            # 🔍 Check Meta Ads
+            # 🔍 Meta Ads Check
             meta_result = check_meta_ads(page, username)
             sheet.update(f"H{row_number}", [[meta_result]])
 
             time.sleep(3)
 
-            # 🔍 Check Google Ads
+            # 🔍 Google Ads Check
             google_result = check_google_ads(page, username)
             sheet.update(f"J{row_number}", [[google_result]])
 
